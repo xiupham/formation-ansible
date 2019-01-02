@@ -123,12 +123,12 @@
         regexp: "{{ server_name }}"
         line: "127.0.0.1 {{ server_name }}"
 
-    - name: Fix var directory permissions
-      file:
-        path: "{{ symfony_var_dir }}"
-        state: directory
-        mode: 0777
-        recurse: yes
+#    - name: Fix var directory permissions
+#      file:
+#        path: "{{ symfony_var_dir }}"
+#        state: directory
+#        mode: 0777
+#        recurse: yes
 
   handlers:
     - name: Restart Nginx
