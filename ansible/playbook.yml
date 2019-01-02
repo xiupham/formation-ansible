@@ -3,8 +3,10 @@
 
   vars:
     server_name: mootube.l
-    symfony_root_dir: /home/pham/workspace/formation-ansible
+    symfony_root_dir: /var/www/project
     symfony_web_dir: "{{ symfony_root_dir }}/public"
+    symfony_console_path: "{{ symfony_root_dir }}/bin/console"
+    symfony_var_dir: "{{ symfony_root_dir }}/var"
 
   tasks:
     - ping: ~
@@ -74,6 +76,7 @@
         repo: https://github.com/symfony/skeleton.git
         dest: "{{ symfony_root_dir }}"
         force: yes
+        version: master
 
     - name: Install low-level utilities
       become: true
@@ -96,10 +99,10 @@
         path: /usr/local/bin/composer
         mode: "a+x"
 
-#    - name: Install Composer's dependencies
-#      composer:
-#        working_dir: "{{ symfony_root_dir }}"
-#        no_dev: no
+    - name: Install Composer's dependencies
+      composer:
+        working_dir: "{{ symfony_root_dir }}"
+        no_dev: no
 
     - name: Add Symfony config template to the Nginx available sites
       become: true
@@ -123,12 +126,23 @@
         regexp: "{{ server_name }}"
         line: "127.0.0.1 {{ server_name }}"
 
-#    - name: Fix var directory permissions
-#      file:
-#        path: "{{ symfony_var_dir }}"
-#        state: directory
-#        mode: 0777
-#        recurse: yes
+    - name: Fix var directory permissions
+      file:
+        path: "{{ symfony_var_dir }}"
+        state: directory
+        mode: 0777
+        recurse: yes
+      tags:
+        - permissions
+
+#    - name: Create DB if not exists
+#      command: '{{ symfony_console_path }} doctrine:database:create --if-not-exists'
+#
+#    - name: Execute migrations
+#      command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
+#
+#    - name: Load data fixtures
+#      command: '{{ symfony_console_path }} hautelook_alice:doctrine:fixtures:load --no-interaction'
 
   handlers:
     - name: Restart Nginx
