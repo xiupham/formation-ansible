@@ -1,0 +1,144 @@
+---
+- hosts: vb
+
+  vars:
+    server_name: mootube.l
+    symfony_root_dir: /home/pham/workspace/formation-ansible
+    symfony_web_dir: "{{ symfony_root_dir }}/public"
+
+  tasks:
+    - ping: ~
+
+    - name: Update APT package manager repositories cache
+      become: true
+      apt:
+        update_cache: yes
+
+    - name: Upgrade installed packages
+      become: true
+      apt:
+        upgrade: dist
+
+    - name: Install Git VCS
+      become: true
+      apt:
+        name: git
+        state: latest
+
+    - name: Install Nginx web server
+      become: true
+      apt:
+        name: nginx
+        state: latest
+      notify: Restart Nginx
+
+    - name: Install MySQL DB server
+      become: true
+      apt:
+        name: mysql-server
+        state: latest
+
+    - name: Install PHP packages
+      become: true
+      apt:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - php7.3-xml
+        - php7.3-cli
+        - php7.3-curl
+        - php7.3-fpm
+        - php7.3-intl
+        - php7.3-mysql
+      notify: Restart PHP-FPM
+
+    - name: Set date.timezone for CLI
+      become: true
+      lineinfile:
+        dest: /etc/php/7.3/fpm/php.ini
+        regexp: "date.timezone ="
+        line: "date.timezone = Europe/Paris"
+      notify: Restart PHP-FPM
+
+    - name: Create project directory and set its permissions
+      become: true
+      file:
+        path: "{{ symfony_root_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+
+    - name: Checkout Git repository
+      git:
+        repo: https://github.com/symfony/skeleton.git
+        dest: "{{ symfony_root_dir }}"
+        force: yes
+
+    - name: Install low-level utilities
+      become: true
+      apt:
+        name: "{{ item }}"
+      with_items:
+        - zip
+        - unzip
+
+    - name: Download Composer
+      script: scripts/install_composer.sh
+
+    - name: Move Composer globally
+      become: true
+      command: mv composer.phar /usr/local/bin/composer
+
+    - name: Set permissions on Composer
+      become: true
+      file:
+        path: /usr/local/bin/composer
+        mode: "a+x"
+
+#    - name: Install Composer's dependencies
+#      composer:
+#        working_dir: "{{ symfony_root_dir }}"
+#        no_dev: no
+
+    - name: Add Symfony config template to the Nginx available sites
+      become: true
+      template:
+        src: templates/symfony.conf
+        dest: "/etc/nginx/sites-available/{{ server_name }}.conf"
+      notify: Restart Nginx
+
+    - name: Enable Symfony config template from Nginx available sites
+      become: true
+      file:
+        src: "/etc/nginx/sites-available/{{ server_name }}.conf"
+        dest: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
+        state: link
+      notify: Restart Nginx
+
+    - name: Add enabled Nginx site to /etc/hosts
+      become: true
+      lineinfile:
+        dest: /etc/hosts
+        regexp: "{{ server_name }}"
+        line: "127.0.0.1 {{ server_name }}"
+
+#    - name: Fix var directory permissions
+#      file:
+#        path: "{{ symfony_var_dir }}"
+#        state: directory
+#        mode: 0777
+#        recurse: yes
+
+  handlers:
+    - name: Restart Nginx
+      become: true
+      service:
+        name: nginx
+        state: restarted
+
+    - name: Restart PHP-FPM
+      become: true
+      service:
+        name: php7.3-fpm
+        state: restarted
